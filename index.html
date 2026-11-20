@@ -126,7 +126,7 @@
   const lockmsg = document.getElementById('lockmsg');
   const projects = [];
   const codeCache = new Map();
-  const meta = await (await fetch('lock.json')).json();
+  const meta = await (await fetch('lock.json', { cache: 'no-cache' })).json();
   const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
   let key = null;
 
@@ -136,8 +136,19 @@
       base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
   }
   async function getFile(path) {
-    const buf = new Uint8Array(await (await fetch(path)).arrayBuffer());
-    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: buf.slice(0, 12) }, key, buf.slice(12));
+    const buf = new Uint8Array(await (await fetch(path, { cache: 'no-cache' })).arrayBuffer());
+    try {
+      const out = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: buf.slice(0, 12) }, key, buf.slice(12));
+      try { sessionStorage.removeItem('staleReload'); } catch (_) {}
+      return out;
+    } catch (e) {
+      if (lock.hidden) {
+        let again = false;
+        try { again = !sessionStorage.getItem('staleReload'); sessionStorage.setItem('staleReload', '1'); sessionStorage.removeItem('galleryKey'); } catch (_) {}
+        if (again) location.reload();
+      }
+      throw e;
+    }
   }
   async function unlock(k) {
     key = k;
