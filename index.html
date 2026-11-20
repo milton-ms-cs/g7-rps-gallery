@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Rock Paper Scissors Gallery</title>
+<script>window.coi = { doReload: () => {}, quiet: true };</script>
+<script src="coi-serviceworker.js"></script>
+<script>
+// Reload once the isolation service worker actually controls the page (first visit only).
+(function () {
+  const KEY = 'coiReloads';
+  if (self.crossOriginIsolated) { try { sessionStorage.removeItem(KEY); } catch (e) {} return; }
+  if (!window.isSecureContext || !navigator.serviceWorker) return;
+  const go = () => {
+    try { const n = +(sessionStorage.getItem(KEY) || 0); if (n >= 2) return; sessionStorage.setItem(KEY, n + 1); } catch (e) {}
+    location.reload();
+  };
+  if (navigator.serviceWorker.controller) go();
+  else navigator.serviceWorker.addEventListener('controllerchange', go, { once: true });
+})();
+</script>
+<style>
+  :root {
+    --bg: #f7f3ea; --card: #fffdf8; --ink: #1f2430; --muted: #5d6472; --line: #e2dccd;
+    --accent: #003e7e; --go: #2e8b3e; --stop: #c0392b;
+    --term: #14161c; --term-ink: #e8eaee; --term-dim: #8f97a6; --term-you: #ffcf6b; --term-err: #ff8a7a;
+    --overlay: rgba(20, 22, 28, 0.97);
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 14px rgba(0,0,0,.06);
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #17191f; --card: #22252d; --ink: #eef0f4; --muted: #a7adb9; --line: #343844;
+      --accent: #8db8ea; --overlay: rgba(0,0,0,.88); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.3);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #17191f; --card: #22252d; --ink: #eef0f4; --muted: #a7adb9; --line: #343844;
+    --accent: #8db8ea; --overlay: rgba(0,0,0,.88); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(0,0,0,.3);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { max-width: 1200px; margin: 0 auto; padding: 40px 16px 8px; }
+  h1 { font: 600 clamp(28px, 4vw, 40px)/1.15 Georgia, "Times New Roman", serif; margin: 0 0 6px; }
+  header p { margin: 0; color: var(--muted); }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 16px 56px; display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  main[hidden], #lock[hidden] { display: none; }
+  #lock { max-width: 1200px; margin: 0 auto; padding: 24px 16px 56px; }
+  #lock label { display: block; font-weight: 600; margin-bottom: 6px; }
+  .lockrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  #pw { font: 16px system-ui, sans-serif; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); width: min(320px, 100%); }
+  .go2 { font: 600 16px system-ui, sans-serif; padding: 10px 16px; border: 0; border-radius: 8px; background: var(--accent); color: var(--bg); cursor: pointer; }
+  #lockmsg { color: var(--stop); min-height: 1.5em; margin: 8px 0 0; }
+
+  .card { all: unset; cursor: pointer; display: block; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; box-shadow: var(--shadow); transition: transform .12s ease; }
+  .card:hover { transform: translateY(-2px); }
+  .card:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  .thumb { aspect-ratio: 4 / 3; width: 100%; display: block; }
+  .mini { background: var(--term); color: var(--term-ink); font: 11.5px/1.45 var(--mono); padding: 12px 14px; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; position: relative; }
+  .mini::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 40px; background: linear-gradient(transparent, var(--term)); }
+  .mini .cur { display: inline-block; width: 7px; height: 13px; background: var(--term-ink); vertical-align: -2px; }
+  .name { padding: 10px 14px 12px; font-weight: 600; font-size: 17px; display: flex; align-items: center; gap: 8px; }
+  .name::before { content: ""; width: 0; height: 0; border-left: 9px solid var(--go); border-top: 6px solid transparent; border-bottom: 6px solid transparent; }
+  .card.soon { cursor: default; }
+  .card.soon:hover { transform: none; }
+  .soon-art { display: flex; align-items: center; justify-content: center; background: repeating-linear-gradient(135deg, var(--bg) 0 14px, var(--card) 14px 28px); border-bottom: 1px dashed var(--line); }
+  .soon-art span { font: italic 600 20px/1 Georgia, serif; color: var(--muted); padding: 8px 14px; border: 2px dashed var(--line); border-radius: 999px; background: var(--card); }
+  .card.soon .name { color: var(--muted); }
+  .card.soon .name::before { border-left-color: var(--line); }
+
+  dialog { border: 0; padding: 0; background: transparent; max-width: 100vw; max-height: 100vh; width: 100vw; height: 100vh; color: #fff; }
+  dialog::backdrop { background: var(--overlay); }
+  .shell { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 16px; gap: 12px; }
+  .bar { width: min(900px, 100%); display: flex; align-items: center; gap: 8px; }
+  .bar h2 { flex: 1; margin: 0; font: 600 22px/1.2 Georgia, serif; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .btn { border: 0; border-radius: 8px; padding: 8px 12px; font: 600 15px system-ui, sans-serif; background: rgba(255,255,255,.14); color: #fff; cursor: pointer; min-height: 40px; }
+  .btn:hover { background: rgba(255,255,255,.24); }
+  .btn.go { background: var(--go); }
+  .btn.stop { background: var(--stop); }
+  #term { border: 1px solid rgba(255,255,255,.18); width: min(900px, 100%); height: min(620px, calc(100vh - 120px)); background: var(--term); color: var(--term-ink); border-radius: 8px; padding: 16px 18px; overflow-y: auto; font: 15px/1.55 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+  #term .you { color: var(--term-you); }
+  #term .sys { color: var(--term-dim); font-style: italic; }
+  #term .err { color: var(--term-err); }
+  #term input { all: unset; color: var(--term-you); caret-color: var(--term-you); min-width: 2ch; width: 60%; font: inherit; }
+  @media (max-width: 560px) { .btn .lbl { display: none; } #term { font-size: 14px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Rock Paper Scissors Gallery</h1>
+  <p>Grade 7 Computer Science, Unit 1 projects written in Python. Click a game to play it, then type your answers.</p>
+</header>
+<form id="lock" autocomplete="off">
+  <label for="pw">Password</label>
+  <div class="lockrow">
+    <input id="pw" type="password" autocomplete="current-password" required>
+    <button class="go2" type="submit">Open gallery</button>
+  </div>
+  <p id="lockmsg" role="alert"></p>
+</form>
+<main id="grid" aria-label="Projects" hidden></main>
+
+<dialog id="player" aria-labelledby="who">
+  <div class="shell">
+    <div class="bar">
+      <h2 id="who"></h2>
+      <button class="btn" id="prev" title="Previous game">&larr;<span class="lbl"> Prev</span></button>
+      <button class="btn" id="next" title="Next game"><span class="lbl">Next </span>&rarr;</button>
+      <button class="btn go" id="again" title="Play again">&#8635;<span class="lbl"> Play again</span></button>
+      <button class="btn stop" id="stop" title="Stop">&#9632;<span class="lbl"> Stop</span></button>
+      <button class="btn" id="close" title="Back to gallery">&#10005;<span class="lbl"> Close</span></button>
+    </div>
+    <div id="term" role="log" aria-live="polite"></div>
+  </div>
+</dialog>
+
+<script>
+(async () => {
+  const grid = document.getElementById('grid');
+  const dlg = document.getElementById('player');
+  const who = document.getElementById('who');
+  const term = document.getElementById('term');
+  const lock = document.getElementById('lock');
+  const lockmsg = document.getElementById('lockmsg');
+  const projects = [];
+  const codeCache = new Map();
+  const meta = await (await fetch('lock.json')).json();
+  const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+  let key = null;
+
+  async function deriveKey(pw) {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: b64(meta.salt), iterations: meta.iterations, hash: 'SHA-256' },
+      base, { name: 'AES-GCM', length: 256 }, true, ['decrypt']);
+  }
+  async function getFile(path) {
+    const buf = new Uint8Array(await (await fetch(path)).arrayBuffer());
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: buf.slice(0, 12) }, key, buf.slice(12));
+  }
+  async function unlock(k) {
+    key = k;
+    const all = JSON.parse(new TextDecoder().decode(await getFile('data.bin')));
+    try { sessionStorage.setItem('galleryKey', JSON.stringify(await crypto.subtle.exportKey('jwk', k))); } catch (e) {}
+    lock.hidden = true; grid.hidden = false;
+    build(all);
+    startWorker();
+  }
+  lock.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    lockmsg.textContent = 'Checking…';
+    try { await unlock(await deriveKey(document.getElementById('pw').value)); lockmsg.textContent = ''; }
+    catch (err) { lockmsg.textContent = 'That password did not work. Try again.'; }
+  });
+
+  function build(all) {
+    all.forEach((p) => {
+      if (!p.key) {
+        const d = document.createElement('div');
+        d.className = 'card soon';
+        d.innerHTML = `<div class="thumb soon-art"><span>Coming soon</span></div><div class="name"></div>`;
+        d.querySelector('.name').textContent = p.name;
+        grid.appendChild(d);
+        return;
+      }
+      const i = projects.length;
+      projects.push(p);
+      const b = document.createElement('button');
+      b.className = 'card';
+      b.innerHTML = `<div class="thumb mini"></div><div class="name"></div>`;
+      const mini = b.querySelector('.mini');
+      mini.textContent = p.preview + ' ';
+      const cur = document.createElement('span'); cur.className = 'cur'; mini.appendChild(cur);
+      b.querySelector('.name').textContent = p.name;
+      b.setAttribute('aria-label', `Play ${p.name}'s game`);
+      b.addEventListener('click', () => open(i));
+      grid.appendChild(b);
+    });
+  }
+
+  // ---- Python runner (one worker per run; a fresh one is warmed up in the background) ----
+  if (!self.crossOriginIsolated) console.warn('Not cross-origin isolated; input() will not work.');
+  let worker = null, workerReady = null, sab = null, ctrl = null, line = null;
+  let current = -1, running = false;
+  const MAX_NODES = 4000;
+
+  function startWorker() {
+    sab = new SharedArrayBuffer(8 + 65536);
+    ctrl = new Int32Array(sab, 0, 2); line = new Uint8Array(sab, 8);
+    const w = new Worker('runner.js', { type: 'module' });
+    w.postMessage({ type: 'init', sab });
+    workerReady = new Promise((res) => {
+      w.addEventListener('message', function f(e) { if (e.data.type === 'ready') { w.removeEventListener('message', f); res(); } });
+    });
+    w.onmessage = onWorker;
+    worker = w;
+  }
+  function killWorker() { if (worker) worker.terminate(); worker = null; running = false; }
+
+  function trim() { while (term.childNodes.length > MAX_NODES) term.removeChild(term.firstChild); }
+  function write(text, cls) {
+    const last = term.lastChild;
+    if (!cls && last && last.nodeType === 3) last.appendData(text);
+    else if (cls) { const s = document.createElement('span'); s.className = cls; s.textContent = text; term.appendChild(s); }
+    else term.appendChild(document.createTextNode(text));
+    trim();
+    term.scrollTop = term.scrollHeight;
+  }
+
+  function onWorker(e) {
+    const m = e.data;
+    if (m.type === 'out') write(m.text);
+    else if (m.type === 'err') { /* tracebacks are summarized in 'error' */ }
+    else if (m.type === 'input') askLine(m.hidden);
+    else if (m.type === 'done') finish('Game over. Press Play again for another round.');
+    else if (m.type === 'error') { write('\n' + m.text + '\n', 'err'); finish('The game stopped because of an error.'); }
+  }
+
+  function askLine(hidden) {
+    const inp = document.createElement('input');
+    inp.type = hidden ? 'password' : 'text';
+    inp.setAttribute('aria-label', hidden ? 'Hidden answer' : 'Your answer');
+    inp.autocomplete = 'off'; inp.spellcheck = false;
+    term.appendChild(inp);
+    term.scrollTop = term.scrollHeight;
+    inp.focus();
+    inp.addEventListener('keydown', (ev) => {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      const val = inp.value;
+      inp.remove();
+      write((hidden ? '•'.repeat(val.length) : val) + '\n', 'you');
+      const bytes = new TextEncoder().encode(val).slice(0, line.length);
+      line.set(bytes);
+      Atomics.store(ctrl, 1, bytes.length);
+      Atomics.store(ctrl, 0, 1);
+      Atomics.notify(ctrl, 0);
+    });
+  }
+  term.addEventListener('click', () => { const i = term.querySelector('input'); if (i && !getSelection().toString()) i.focus(); });
+
+  function finish(msg) {
+    running = false;
+    write('\n' + msg + '\n', 'sys');
+    // Fresh interpreter for the next game.
+    killWorker(); startWorker();
+  }
+
+  async function getCode(p) {
+    if (!codeCache.has(p.key)) codeCache.set(p.key, new TextDecoder().decode(await getFile(`code/${p.key}.bin`)));
+    return codeCache.get(p.key);
+  }
+
+  async function run() {
+    const p = projects[current];
+    if (!self.crossOriginIsolated) {
+      term.textContent = '';
+      write('This browser blocked the part of the page that lets games ask questions. Try reloading the page, or open it in Chrome, Edge, Safari or Firefox (not a private window).\n', 'err');
+      return;
+    }
+    if (running) { killWorker(); startWorker(); }
+    term.textContent = '';
+    write('Starting Python…\n', 'sys');
+    const code = await getCode(p);
+    await workerReady;
+    if (projects[current] !== p) return;
+    term.textContent = '';
+    running = true;
+    worker.postMessage({ type: 'run', code });
+  }
+
+  async function open(i) {
+    current = (i + projects.length) % projects.length;
+    who.textContent = projects[current].name;
+    if (!dlg.open) dlg.showModal();
+    run();
+  }
+
+  document.getElementById('again').onclick = () => run();
+  document.getElementById('stop').onclick = () => { if (running) { killWorker(); startWorker(); write('\nStopped.\n', 'sys'); } };
+  document.getElementById('prev').onclick = () => open(current - 1);
+  document.getElementById('next').onclick = () => open(current + 1);
+  document.getElementById('close').onclick = () => dlg.close();
+  dlg.addEventListener('close', () => { if (running) { killWorker(); startWorker(); } });
+  dlg.addEventListener('cancel', (e) => { e.preventDefault(); dlg.close(); });
+
+  try {
+    const saved = sessionStorage.getItem('galleryKey');
+    if (saved) await unlock(await crypto.subtle.importKey('jwk', JSON.parse(saved), { name: 'AES-GCM' }, true, ['decrypt']));
+  } catch (e) { key = null; }
+})();
+</script>
+</body>
+</html>
