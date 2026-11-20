@@ -262,7 +262,14 @@
     if (running) { killWorker(); startWorker(); }
     term.textContent = '';
     write('Starting Python…\n', 'sys');
-    const code = await getCode(p);
+    let code;
+    try { code = await getCode(p); }
+    catch (e) {
+      try { sessionStorage.removeItem('galleryKey'); } catch (_) {}
+      term.textContent = '';
+      write('This gallery was just updated. Reload the page and enter the password again.\n', 'err');
+      return;
+    }
     await workerReady;
     if (projects[current] !== p) return;
     term.textContent = '';
